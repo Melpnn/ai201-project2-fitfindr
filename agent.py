@@ -93,8 +93,47 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     of planning.md — your implementation should match what you described there.
     """
     # TODO: implement the planning loop
+
     session = _new_session(query, wardrobe)
-    session["error"] = "Planning loop not yet implemented."
+
+    import re
+
+    price_match = re.search(r'\$(\d+(\.\d+)?)', query)
+    if price_match:
+        max_price = float(price_match.group(1))
+    else:
+        max_price = None
+
+    size_match = re.search(r'\bsize\s+(\w+)', query, re.IGNORECASE)
+    if size_match:
+        size = size_match.group(1)
+    else:
+        size = None
+
+    description = query
+
+    session["parsed"] = {
+        "description": description,
+        "size": size,
+        "max_price": max_price
+    }
+
+    results = search_listings(description, size=size, max_price=max_price)
+
+    session["search_results"] = results
+
+    if len(results) == 0:
+        session["error"] = "No listings matched your search. Try a broader description or a higher max price."
+        return session
+
+    session["selected_item"] = results[0]
+
+    outfit = suggest_outfit(session["selected_item"], wardrobe)
+    session["outfit_suggestion"] = outfit
+
+    fit_card = create_fit_card(outfit, session["selected_item"])
+    session["fit_card"] = fit_card
+
     return session
 
 
