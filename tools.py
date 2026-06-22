@@ -69,8 +69,43 @@ def search_listings(
 
     Before writing code, fill in the Tool 1 section of planning.md.
     """
-    # Replace this with your implementation
-    return []
+    listings = load_listings();
+
+    filtered_price = []
+    for item in listings:
+        if max_price is None:
+            filtered_price.append(item)
+        elif item["price"] <= max_price:
+            filtered_price.append(item)
+
+    filtered_size = []
+    for item in filtered_price:
+        if size is None:
+            filtered_size.append(item)
+        elif size.lower() in item["size"].lower():
+            filtered_size.append(item)
+    
+    keywords = description.lower().split()
+    
+    scored_listings = []
+    for item in filtered_size:
+        searchable_text = item["title"].lower() + " " + item["description"].lower() + " " + " ".join(item["style_tags"]).lower()
+
+        match_count = 0
+        for word in keywords:
+            if word in searchable_text:
+                match_count += 1
+
+        if match_count > 0:
+            scored_listings.append((item, match_count))  
+
+    scored_listings.sort(key=lambda x: x[1], reverse=True)
+
+    results = []
+    for item, score in scored_listings:
+        results.append(item)
+
+    return results
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
