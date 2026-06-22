@@ -1,4 +1,5 @@
-from tools import search_listings
+from tools import search_listings, suggest_outfit, create_fit_card
+from utils.data_loader import get_example_wardrobe, get_empty_wardrobe
 
 def test_search_returns_results():
     results = search_listings("vintage graphic tee", size=None, max_price=50)
@@ -12,3 +13,40 @@ def test_search_empty_results():
 def test_search_price_filter():
     results = search_listings("jacket", size=None, max_price=10)
     assert all(item["price"] <= 10 for item in results)
+
+def test_suggest_outfit_with_wardrobe():
+    item = {"title": "Y2K Baby Tee", "description": "Cute fitted crop tee", "style_tags": ["y2k", "vintage"]}
+    result = suggest_outfit(item, get_example_wardrobe())
+    assert isinstance(result, str)
+    assert len(result) > 0
+
+def test_suggest_outfit_empty_wardrobe():
+    item = {"title": "Y2K Baby Tee", "description": "Cute fitted crop tee", "style_tags": ["y2k", "vintage"]}
+    result = suggest_outfit(item, get_empty_wardrobe())
+    assert isinstance(result, str)
+    assert len(result) > 0
+
+def test_create_fit_card_returns_caption():
+    item = {
+        "title": "Y2K Baby Tee",
+        "price": 18.00,
+        "platform": "depop",
+        "description": "Cute fitted crop tee",
+        "style_tags": ["y2k", "vintage"]
+    }
+    outfit = "Pair with baggy dark wash jeans and white sneakers for a 90s look."
+    result = create_fit_card(outfit, item)
+    assert isinstance(result, str)
+    assert len(result) > 0
+
+def test_create_fit_card_empty_outfit():
+    item = {
+        "title": "Y2K Baby Tee",
+        "price": 18.00,
+        "platform": "depop",
+        "description": "Cute fitted crop tee",
+        "style_tags": ["y2k", "vintage"]
+    }
+    result = create_fit_card("", item)
+    assert isinstance(result, str)
+    assert len(result) > 0

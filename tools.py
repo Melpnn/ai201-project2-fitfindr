@@ -134,9 +134,42 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
         4. Return the LLM's response as a string.
 
     Before writing code, fill in the Tool 2 section of planning.md.
-    """
-    # Replace this with your implementation
-    return ""
+    """    
+
+    client = _get_groq_client()
+
+    wardrobe_items = wardrobe["items"]
+
+    if len(wardrobe_items) == 0:
+        prompt = (
+            f"I just thrifted this item: {new_item['title']}. "
+            f"It is described as: {new_item['description']}. "
+            f"The style tags are: {', '.join(new_item['style_tags'])}. "
+            f"I don't have my wardrobe on file. Can you give me general advice "
+            f"on what kinds of pieces pair well with this item and what vibe it suits?"
+        )
+    else:
+        wardrobe_text = ""
+        for item in wardrobe_items:
+            wardrobe_text += f"- {item['name']} (colors: {', '.join(item['colors'])}, style: {', '.join(item['style_tags'])})\n"
+
+        prompt = (
+            f"I just thrifted this item: {new_item['title']}. "
+            f"It is described as: {new_item['description']}. "
+            f"The style tags are: {', '.join(new_item['style_tags'])}. "
+            f"Here are the pieces I already own:\n{wardrobe_text}\n"
+            f"Suggest 1-2 complete outfits using the new item and specific pieces from my wardrobe. "
+            f"Be specific about which pieces to combine and why they work together."
+        )
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    return response.choices[0].message.content
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -168,5 +201,26 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
 
     Before writing code, fill in the Tool 3 section of planning.md.
     """
-    # Replace this with your implementation
-    return ""
+
+    if not outfit or outfit.strip() == "":
+        return f"Found {new_item['title']} for ${new_item['price']} on {new_item['platform']} — check it out."
+
+    client = _get_groq_client()
+
+    prompt = (
+        f"Write a casual 2-4 sentence Instagram/TikTok caption for this outfit. "
+        f"The thrifted item is: {new_item['title']}, bought for ${new_item['price']} on {new_item['platform']}. "
+        f"The outfit suggestion is: {outfit}. "
+        f"Make it sound like a real person posting an OOTD — casual, authentic, not like a product description. "
+        f"Mention the item name, price, and platform once each. Capture the vibe in specific terms."
+    )
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=1.2
+    )
+
+    return response.choices[0].message.content
