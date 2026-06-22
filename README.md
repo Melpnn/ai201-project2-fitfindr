@@ -1,130 +1,89 @@
-# FitFindr — Starter Kit
+# FitFindr
 
-This starter kit contains everything you need to begin Project 2.
+FitFindr is a thrift shopping agent that finds secondhand listings and suggests 
+outfits based on your wardrobe.
 
-## What's Included
+## How to Run
+1. Clone the repo
+2. Install dependencies using `pip install -r requirements.txt`
+3. Add your Groq API key to a `.env` file: `GROQ_API_KEY=your_key_here`
+4. Run `python app.py`
+5. Open the URL shown in your terminal
 
-```
-ai201-project2-fitfindr-starter/
-├── data/
-│   ├── listings.json          # 40 mock secondhand listings
-│   └── wardrobe_schema.json   # Wardrobe format + example wardrobe
-├── utils/
-│   └── data_loader.py         # Helper functions for loading the data
-├── planning.md                # Your planning template — fill this out first
-└── requirements.txt           # Python dependencies
-```
+## Tools
 
-## Setup
+### search_listings(description, size, max_price)
+- Purpose: This tool searches through the listings provided based on the user's input, which should include things like item description, size, and max price. 
+- Inputs: description (str), size (str or None), max_price (float or None)
+- Output: A list of matching listing dicts. Each dict contains: id, title, description, category, style_tags, size, condition, price, colors, brand, and platform.
+- Failure: Returns an empty list if nothing matches 
 
-**macOS / Linux:**
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+### suggest_outfit(new_item, wardrobe)
+- **Purpose:** Given a thrifted item and the user's wardrobe, suggests a complete outfit combination using the owned pieces and new item
+- **Inputs:** new_item (dict — a listing), wardrobe (dict with an 'items' key)
+- **Output:** A string describing which wardrobe pieces to pair with the new item and why.
+- **Failure:** If wardrobe is empty, returns general styling advice instead of crashing
 
-**Windows:**
-```bash
-python -m venv .venv
-source .venv/Scripts/activate
-pip install -r requirements.txt
-```
+### create_fit_card(outfit, new_item)
+- **Purpose:** Generates a casual social media caption for the outfit
+- **Inputs:** outfit (str from suggest_outfit), new_item (dict — the listing)
+- **Output:** A string of 1-3 sentences in casual social media style
+- **Failure:** If outfit is empty, returns a fallback caption using only the item details
 
-Set your Groq API key in a `.env` file (get a free key at [console.groq.com](https://console.groq.com)):
-```
-GROQ_API_KEY=your_key_here
-```
+## Planning Loop
 
-## The Mock Listings Dataset
+The agent follows this logic for every query:
 
-`data/listings.json` contains 40 mock secondhand listings across categories (tops, bottoms, outerwear, shoes, accessories) and styles (vintage, y2k, grunge, cottagecore, streetwear, and more).
+1. Parse the query to extract a description, size (if mentioned), and max price (if mentioned)
+2. Call search_listings — if no results, tell the user and stop immediately
+3. Pick the top result and call suggest_outfit with the user's wardrobe
+4. Call create_fit_card with the outfit suggestion and selected item
+5. Return the session with all results populated
 
-Each listing has: `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`.
+The key decision point is after search_listings, where if it returns an empty list, the agent sets an error message and returns early without calling the LLM tools. This prevents suggest_outfit from receiving empty input.
 
-Load it with:
+## State Management
+
+All data is stored in a session dict that gets passed through the planning loop:
+
 ```python
-from utils.data_loader import load_listings
-listings = load_listings()
+session = {
+    "query": "",              # original user message
+    "parsed": {},             # extracted description, size, max_price
+    "search_results": [],     # all matches from search_listings
+    "selected_item": {},      # top result, passed int suggest_outfit
+    "wardrobe": {},           # loaded at session start
+    "outfit_suggestion": "",  # returned by suggest_outfit
+    "fit_card": "",           # returned by create_fit_card
+    "error": None             # set if something fails, stops the loop
+}
 ```
 
-## The Wardrobe Schema
+Each tool reads from the session and writes its output back into it. 
+app.py reads the final session and maps each field to an output panel.
 
-`data/wardrobe_schema.json` defines the format your agent uses to represent a user's existing wardrobe. It includes:
-
-- `schema`: field definitions for a wardrobe item
-- `example_wardrobe`: a sample wardrobe with 10 items you can use for testing
-- `empty_wardrobe`: a starting template for a new user
-
-Load an example wardrobe with:
-```python
-from utils.data_loader import get_example_wardrobe
-wardrobe = get_example_wardrobe()
-```
-
-## Tool Inventory
-
-Your README submission must document each tool's name, inputs, and return value. **These must exactly match your actual function signatures in `tools.py`.** Your documented interfaces will be checked against your actual function signatures in `tools.py` — if the parameter count or types contradict what's in the code, you may not receive full credit for that tool.
-
----
-
-## Interaction Walkthrough
-
-<!-- Walk through a complete interaction step by step: natural language query → each tool call (and why) → final fit card.
-     Walk through this carefully — it's how graders follow your agent's reasoning without a live demo.
-     Use a specific example — do not leave this as a template. -->
-
-**User query:**
-
-**Step 1 — Tool called:**
-- Tool:
-- Input:
-- Why this tool:
-- Output:
-
-**Step 2 — Tool called:**
-- Tool:
-- Input:
-- Why this tool:
-- Output:
-
-**Step 3 — Tool called:**
-- Tool:
-- Input:
-- Why this tool:
-- Output:
-
-**Final output to user:**
-
----
-
-## Error Handling and Fail Points
-
-<!-- For each tool, describe the specific failure mode and what your agent does in response.
-     This maps to the error handling section of the rubric (F5-C1). -->
+## Error Handling
 
 | Tool | Failure mode | Agent response |
 |------|-------------|----------------|
-| `search_listings` | | |
-| `suggest_outfit` | | |
-| `create_fit_card` | | |
+| search_listings | No results match the query | "No listings matched your search. Try a broader description or a higher max price." Agent stops and does not call suggest_outfit |
+| suggest_outfit | Wardrobe is empty |"I don't have your wardrobe on file yet. Try describing what you already own and I can suggest pairings."|
+| create_fit_card | Empty outfit string | "Found [title] for $[price] on [platform] — check it out." No LLM call made. |
 
----
+**Example from testing:** Running `search_listings("designer ballgown", size="XXS", max_price=5)` returned `[]` with no exception. The agent responded with the error message and never called suggest_outfit.
+
+## AI Usage
+
+**Instance 1 — search_listings implementation:**
+I gave Claude the Tool 1 spec block from planning.md including the input parameters, 
+return value description, and failure mode. I asked it to implement the function using load_listings() from the data loader. The generated code used list comprehensions which I rewrote as regular for loops for readability. I also caught a bug where it was looping over an empty list, which I fixed before running tests.
+
+**Instance 2 — planning loop implementation:**
+I gave Claude the Planning Loop section, State Management section, and architecture 
+diagram from planning.md. It generated the full run_agent() function. I verified it 
+branched correctly on empty search results and stored values in the session dict before using it.
 
 ## Spec Reflection
 
-<!-- Answer both questions with at least 2–3 sentences each. -->
-
-**One way planning.md helped during implementation:**
-
-**One divergence from your spec, and why:**
-
----
-
-## Where to Start
-
-1. **Read `planning.md` and fill it out before writing any code.**
-2. Verify the data loads correctly by running `python utils/data_loader.py`.
-3. Build and test each tool individually before connecting them through your planning loop.
-
-Your implementation files go in this same directory. There's no required file structure for your agent code — organize it however makes sense for your design.
+My planning.md spec held up well during implementation. The planning loop logic I 
+described matched the final code closely, and I learned a lot about the proper usage of AI and how to properly prompt and use it with intention. 
